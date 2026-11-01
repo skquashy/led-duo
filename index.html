@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LED Duo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column, a big colour ring as the hero, controls stacked below. Deliberately single dark look (it's a lamp remote). */
+:root {
+  --bg: #0d0f14;
+  --panel: #161a22;
+  --line: #262c38;
+  --fg: #eef1f7;
+  --muted: #8a93a6;
+  --accent: #ffd400;          /* the yellow from the box */
+  --ok: #35d07f;
+  --bad: #ff5a5a;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --glow: #ff3b6b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--fg); }
+body {
+  font-family: var(--body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+  -webkit-tap-highlight-color: transparent;
+}
+.wrap { max-width: 460px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: .01em; }
+h1 span { color: var(--accent); }
+h2 { font-family: var(--display); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 10px; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+button {
+  font: inherit; font-weight: 700; color: var(--fg); background: var(--line);
+  border: 0; border-radius: 12px; padding: 11px 14px; cursor: pointer; min-height: 44px;
+}
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: #111; }
+button.on { background: var(--fg); color: var(--bg); }
+button:disabled { opacity: .45; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > button { flex: 1 1 0; }
+.note { color: var(--muted); font-size: 13px; margin: 0; }
+.warn { border-color: #5a4a10; background: #1d1a0e; }
+.warn p { margin: 0; }
+.warn b { color: var(--accent); }
+
+/* strips */
+.strips { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.strip { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.strip .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
+.strip.live .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.strip .name { min-width: 0; }
+.strip .name b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip .name small { color: var(--muted); }
+.strip .acts { display: flex; gap: 6px; align-items: center; }
+.strip select { font: inherit; font-size: 13px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+.strip button { min-height: 34px; padding: 6px 10px; font-size: 13px; }
+.empty { color: var(--muted); font-size: 14px; padding: 6px 2px; }
+
+/* colour ring */
+.ringbox { display: grid; place-items: center; padding: 6px 0 2px; }
+.ring {
+  position: relative; width: min(300px, 78vw); aspect-ratio: 1; max-width: 100%; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, rgba(255,255,255,0) 70%),
+              conic-gradient(from 90deg, red, yellow, lime, cyan, blue, magenta, red);
+  touch-action: none; cursor: crosshair;
+  box-shadow: 0 0 60px -10px var(--glow);
+}
+.ring .knob { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px #0008, 0 2px 8px #0008; pointer-events: none; }
+.ring .hub { position: absolute; inset: 36%; border-radius: 50%; background: var(--bg); display: grid; place-items: center; text-align: center; pointer-events: none; border: 1px solid var(--line); }
+.hub b { font-family: var(--display); font-size: 13px; font-variant-numeric: tabular-nums; }
+.swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-top: 14px; }
+.swatches button { aspect-ratio: 1; min-height: 0; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+
+label.slider { display: grid; grid-template-columns: 92px 1fr 40px; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; }
+label.slider output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid2 button { text-align: left; font-weight: 500; }
+.grid2 button.on { font-weight: 700; }
+.sep { height: 1px; background: var(--line); margin: 14px 0; }
+.status { font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.status.err { color: var(--bad); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>LED <span>Duo</span></h1>
+    <div class="row" style="flex:0 0 auto">
+      <button id="btnOn" class="primary">Вкл</button>
+      <button id="btnOff">Выкл</button>
+    </div>
+  </header>
+
+  <section id="noBt" class="warn" hidden>
+    <p><b>Bluetooth недоступен в этом браузере.</b> На iPhone открой эту страницу в бесплатном браузере <b>Bluefy</b> из App Store. Safari и Chrome на iPhone не умеют работать с Bluetooth.</p>
+  </section>
+
+  <section>
+    <h2>Ленты</h2>
+    <div class="strips" id="strips"><div class="empty">Пока ничего не подключено. Нажми «Добавить ленту» и выбери ELK-BLEDOM, потом повтори для второй.</div></div>
+    <div class="row"><button id="btnAdd" class="primary">+ Добавить ленту</button></div>
+    <p class="status" id="status"></p>
+  </section>
+
+  <section>
+    <h2>Цвет (на все ленты сразу)</h2>
+    <div class="ringbox">
+      <div class="ring" id="ring">
+        <div class="hub"><div><b id="hex">#FF3B6B</b></div></div>
+        <div class="knob" id="knob"></div>
+      </div>
+    </div>
+    <div class="swatches" id="swatches"></div>
+    <label class="slider">Яркость <input type="range" id="bri" min="1" max="100" value="80"><output id="briOut">80</output></label>
+  </section>
+
+  <section>
+    <h2>Свои эффекты (синхронно)</h2>
+    <div class="grid2" id="fx"></div>
+    <label class="slider">Скорость <input type="range" id="fxSpeed" min="1" max="100" value="40"><output id="fxSpeedOut">40</output></label>
+    <p class="note" style="margin-top:10px">Эффекты считает телефон и отправляет кадры на обе ленты, поэтому ленты меняются вместе. Пока эффект идёт, держи страницу открытой.</p>
+    <div class="sep"></div>
+    <h2>Встроенные эффекты контроллера</h2>
+    <div class="grid2" id="hwfx"></div>
+    <label class="slider">Скорость <input type="range" id="hwSpeed" min="0" max="100" value="50"><output id="hwSpeedOut">50</output></label>
+  </section>
+</div>
+
+<script>
+(() => {
+  const SERVICE = 0xfff0, CHAR = 0xfff3;
+  const $ = id => document.getElementById(id);
+  const statusEl = $('status');
+  const strips = []; // {device, char, name, order, enabled, busy, pending}
+
+  const setStatus = (t, err) => { statusEl.textContent = t || ''; statusEl.classList.toggle('err', !!err); };
+
+  if (!navigator.bluetooth) { $('noBt').hidden = false; $('btnAdd').disabled = true; }
+
+  // ---- ELK-BLEDOM protocol ----
+  const pkt = (...b) => new Uint8Array([0x7e, 0x00, ...b, 0xef]);
+  const CMD = {
+    on:     () => pkt(0x04, 0xf0, 0x00, 0x01, 0xff, 0x00),
+    off:    () => pkt(0x04, 0x00, 0x00, 0x00, 0xff, 0x00),
+    color:  (r, g, b) => pkt(0x05, 0x03, r, g, b, 0x00),
+    bright: v => pkt(0x01, v, 0x00, 0x00, 0x00, 0x00),
+    effect: e => pkt(0x03, e, 0x03, 0x00, 0x00, 0x00),
+    speed:  v => pkt(0x02, v, 0x00, 0x00, 0x00, 0x00),
+  };
+  const ORDERS = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
+  const reorder = (rgb, order) => order.split('').map(c => rgb['RGB'.indexOf(c)]);
+
+  // one write in flight per strip; newer frames replace the waiting one
+  async function pump(s) {
+    if (s.busy || !s.pending) return;
+    const data = s.pending; s.pending = null; s.busy = true;
+    try {
+      if (s.char.writeValueWithoutResponse) await s.char.writeValueWithoutResponse(data);
+      else await s.char.writeValue(data);
+    } catch (e) { console.warn(e); }
+    s.busy = false; pump(s);
+  }
+  function send(s, data) { if (!s.char) return; s.pending = data; pump(s); }
+  function sendAll(make) { strips.filter(s => s.enabled && s.char).forEach((s, i) => send(s, make(s, i))); }
+  const sendColor = (rgb, perStrip) => sendAll((s, i) => CMD.color(...reorder(perStrip ? perStrip(i) : rgb, s.order)));
+
+  // ---- connecting ----
+  $('btnAdd').onclick = async () => {
+    try {
+      setStatus('Выбери ленту в списке…');
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'ELK' }, { namePrefix: 'ELK-BLEDOM' }, { services: [SERVICE] }],
+        optionalServices: [SERVICE],
+      });
+      const existing = strips.find(s => s.device.id === device.id);
+      const s = existing || { device, name: device.name || 'Лента', order: 'RGB', enabled: true, char: null, busy: false, pending: null };
+      if (!existing) strips.push(s);
+      device.addEventListener('gattserverdisconnected', () => { s.char = null; render(); setStatus(`${label(s)} отключилась`, true); });
+      await connect(s);
+      setStatus(`${label(s)} подключена`);
+    } catch (e) {
+      if (e.name === 'NotFoundError') setStatus('');
+      else setStatus('Не получилось подключиться: ' + e.message, true);
+    }
+  };
+
+  async function connect(s) {
+    const server = await s.device.gatt.connect();
+    const svc = await server.getPrimaryService(SERVICE);
+    try { s.char = await svc.getCharacteristic(CHAR); }
+    catch { s.char = (await svc.getCharacteristics()).find(c => c.properties.write || c.properties.writeWithoutResponse); }
+    if (!s.char) throw new Error('у ленты нет нужного канала записи');
+    render();
+    send(s, CMD.on());
+    setTimeout(() => send(s, CMD.color(...reorder(state.rgb, s.order))), 120);
+  }
+
+  const label = s => `Лента ${strips.indexOf(s) + 1}`;
+
+  function render() {
+    const box = $('strips');
+    if (!strips.length) return;
+    box.innerHTML = '';
+    strips.forEach((s, i) => {
+      const el = document.createElement('div');
+      el.className = 'strip' + (s.char ? ' live' : '');
+      el.innerHTML = `<span class="dot"></span>
+        <div class="name"><b>${label(s)}</b><small>${s.name} · ${s.char ? 'на связи' : 'нет связи'}</small></div>
+        <div class="acts">
+          <select id="ord${i}" title="Порядок цветов">${ORDERS.map(o => `<option${o === s.order ? ' selected' : ''}>${o}</option>`).join('')}</select>
+          <button id="en${i}" class="${s.enabled ? 'on' : ''}" title="Участвует в группе">${s.enabled ? 'В группе' : 'Отдельно'}</button>
+          ${s.char ? '' : `<button id="re${i}">Снова</button>`}
+        </div>`;
+      box.appendChild(el);
+      $('ord' + i).onchange = e => { s.order = e.target.value; send(s, CMD.color(...reorder(state.rgb, s.order))); };
+      $('en' + i).onclick = () => { s.enabled = !s.enabled; render(); };
+      if (!s.char) $('re' + i).onclick = () => connect(s).then(() => setStatus(`${label(s)} снова на связи`)).catch(e => setStatus(e.message, true));
+    });
+  }
+
+  // ---- colour ----
+  const state = { h: 345, sat: 0.77, rgb: [255, 59, 107] };
+  const hsv2rgb = (h, s, v = 1) => {
+    const f = n => { const k = (n + h / 60) % 6; return Math.round(255 * (v - v * s * Math.max(0, Math.min(k, 4 - k, 1)))); };
+    return [f(5), f(3), f(1)];
+  };
+  const rgb2hsv = ([r, g, b]) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [(h * 60 + 360) % 360, mx ? d / mx : 0];
+  };
+  const hex = rgb => '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
+
+  const ring = $('ring'), knob = $('knob');
+  function paintColor() {
+    const rad = ring.clientWidth / 2;
+    // conic starts at 3 o'clock (from 90deg) and runs clockwise
+    const a = state.h * Math.PI / 180, r = state.sat * rad;
+    knob.style.left = (rad + Math.cos(a) * r) + 'px';
+    knob.style.top = (rad + Math.sin(a) * r) + 'px';
+    knob.style.background = hex(state.rgb);
+    $('hex').textContent = hex(state.rgb);
+    document.documentElement.style.setProperty('--glow', hex(state.rgb));
+  }
+  function setColor(rgb, push = true) {
+    state.rgb = rgb; [state.h, state.sat] = rgb2hsv(rgb);
+    paintColor();
+    if (push) { stopFx(); sendColor(rgb); }
+  }
+  function pick(e) {
+    const r = ring.getBoundingClientRect(), rad = r.width / 2;
+    const x = e.clientX - r.left - rad, y = e.clientY - r.top - rad;
+    state.h = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    state.sat = Math.min(1, Math.hypot(x, y) / rad);
+    state.rgb = hsv2rgb(state.h, state.sat);
+    paintColor(); stopFx(); sendColor(state.rgb);
+  }
+  ring.addEventListener('pointerdown', e => { ring.setPointerCapture(e.pointerId); pick(e); });
+  ring.addEventListener('pointermove', e => { if (ring.hasPointerCapture(e.pointerId)) pick(e); });
+  window.addEventListener('resize', paintColor);
+
+  const PRESETS = ['#FF0000', '#FF6A00', '#FFD400', '#00FF40', '#00E5FF', '#0040FF', '#B000FF', '#FFFFFF'];
+  PRESETS.forEach(c => {
+    const b = document.createElement('button');
+    b.style.background = c; b.title = c; b.setAttribute('aria-label', 'Цвет ' + c);
+    b.onclick = () => setColor([1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)));
+    $('swatches').appendChild(b);
+  });
+
+  const bri = $('bri');
+  bri.oninput = () => { $('briOut').textContent = bri.value; sendAll(() => CMD.bright(+bri.value)); };
+
+  $('btnOn').onclick = () => sendAll(() => CMD.on());
+  $('btnOff').onclick = () => { stopFx(); sendAll(() => CMD.off()); };
+
+  // ---- own effects, computed here and sent to every strip in the same frame ----
+  const FX = {
+    'Радуга':        (t) => () => hsv2rgb((t * 60) % 360, 1),
+    'Радуга волной': (t) => i => hsv2rgb((t * 60 + i * 120) % 360, 1),
+    'Дыхание':       (t) => () => { const k = 0.08 + 0.92 * (0.5 - 0.5 * Math.cos(t * 2)); return state.rgb.map(v => Math.round(v * k)); },
+    'Полиция':       (t) => i => ((Math.floor(t * 3) + i) % 2 ? [255, 0, 0] : [0, 0, 255]),
+    'Огонь':         (t) => i => { const n = Math.sin(t * 7 + i * 2) * Math.sin(t * 13.3 + i) * 0.5 + 0.5; return [255, Math.round(40 + 90 * n), 0]; },
+    'Закат':         (t) => i => { const k = 0.5 - 0.5 * Math.cos(t * 0.8 + i * 1.2); return [255, Math.round(20 + 120 * k), Math.round(90 * (1 - k))]; },
+  };
+  let fxName = null, fxTimer = null, fxT = 0;
+  function stopFx() { clearInterval(fxTimer); fxTimer = null; fxName = null; markFx(); }
+  function startFx(name) {
+    stopFx(); fxName = name; fxT = 0; markFx();
+    fxTimer = setInterval(() => {
+      fxT += 0.08 * (+$('fxSpeed').value / 40);
+      const f = FX[name](fxT);
+      sendColor(null, f);
+      const c = f(0); knob.style.background = hex(c); document.documentElement.style.setProperty('--glow', hex(c));
+    }, 80);
+  }
+  function markFx() { [...$('fx').children].forEach(b => b.classList.toggle('on', b.textContent === fxName)); }
+  Object.keys(FX).forEach(n => {
+    const b = document.createElement('button'); b.textContent = n;
+    b.onclick = () => (fxName === n ? (stopFx(), sendColor(state.rgb), paintColor()) : startFx(n));
+    $('fx').appendChild(b);
+  });
+  $('fxSpeed').oninput = e => $('fxSpeedOut').textContent = e.target.value;
+
+  // ---- controller's built-in effects ----
+  const HW = { 'Прыжок RGB': 0x87, 'Прыжок 7 цветов': 0x88, 'Перелив RGB': 0x89, 'Перелив 7 цветов': 0x8a, 'Мигание 7 цветов': 0x95, 'Перелив красный': 0x8b };
+  Object.entries(HW).forEach(([n, code]) => {
+    const b = document.createElement('button'); b.textContent = n;
+    b.onclick = () => { stopFx(); sendAll(() => CMD.effect(code)); [...$('hwfx').children].forEach(x => x.classList.toggle('on', x === b)); };
+    $('hwfx').appendChild(b);
+  });
+  $('hwSpeed').oninput = e => { $('hwSpeedOut').textContent = e.target.value; sendAll(() => CMD.speed(+e.target.value)); };
+
+  paintColor();
+})();
+</script>
+</body>
+</html>
